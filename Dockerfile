@@ -26,7 +26,7 @@ ENV NJS_TAG 0.6.2
 ARG BUILD_DATE
 ARG VCS_REF
 
-RUN set -x; GPG_KEYS=573BFD6B3D8FBC641079A6ABABF5BD827BD9BF62 \
+RUN set -x \
   && CONFIG="\
   --prefix=/etc/nginx \
   --sbin-path=/usr/sbin/nginx \
