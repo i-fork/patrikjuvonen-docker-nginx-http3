@@ -5,7 +5,7 @@ services:
     build:
       context: ./
       dockerfile: Dockerfile
-    image: patrikjuvonen/docker-nginx-http3
+    image: patrikjuvonen/docker-nginx-http3:nginx-quic
     ports:
       - 80:80
       - 443:443

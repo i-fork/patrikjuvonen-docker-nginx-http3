@@ -1,6 +1,6 @@
 ##################################################
-# Nginx with Quiche (HTTP/3), Brotli, Headers More
-# and ModSec modules.
+# Nginx with nginx-quic (HTTP/3), Brotli, Headers
+# More and ModSec modules.
 ##################################################
 # This is a fork of:
 # ranadeeppolavarapu/docker-nginx-http3
@@ -18,7 +18,6 @@ FROM alpine:edge AS builder
 LABEL maintainer="Patrik Juvonen <22572159+patrikjuvonen@users.noreply.github.com>"
 
 ENV NGINX_VERSION 1.21.6
-ENV QUICHE_CHECKOUT d97ab1974e1210f192838223f5ec533ffb4de3d0
 ENV MODSEC_TAG v3/master
 ENV MODSEC_NGX_TAG master
 ENV NJS_TAG 0.6.2
@@ -27,7 +26,7 @@ ENV NJS_TAG 0.6.2
 ARG BUILD_DATE
 ARG VCS_REF
 
-RUN set -x; GPG_KEYS=B0F4253373F8F6F510D42178520A9993A1C052F8 \
+RUN set -x; GPG_KEYS=573BFD6B3D8FBC641079A6ABABF5BD827BD9BF62 \
   && CONFIG="\
   --prefix=/etc/nginx \
   --sbin-path=/usr/sbin/nginx \
@@ -76,8 +75,9 @@ RUN set -x; GPG_KEYS=B0F4253373F8F6F510D42178520A9993A1C052F8 \
   --with-http_v2_module \
   --with-http_v2_hpack_enc \
   --with-http_v3_module \
-  --with-openssl=/usr/src/quiche/quiche/deps/boringssl \
-  --with-quiche=/usr/src/quiche \
+  --with-http_quic_module \
+  --with-stream_quic_module \
+  --with-openssl=/usr/src/boringssl \
   --add-module=/usr/src/ngx_brotli \
   --add-module=/usr/src/headers-more-nginx-module \
   --add-module=/usr/src/njs/nginx \
@@ -117,6 +117,8 @@ RUN set -x; GPG_KEYS=B0F4253373F8F6F510D42178520A9993A1C052F8 \
   rust \
   cargo \
   patch \
+  && apk add --no-cache --virtual .nginx-quic-build-deps \
+  mercurial \
   && apk add --no-cache --virtual .modsec-build-deps \
   libxml2-dev \
   byacc \
@@ -127,58 +129,64 @@ RUN set -x; GPG_KEYS=B0F4253373F8F6F510D42178520A9993A1C052F8 \
   file \
   && mkdir /usr/src \
   && cd /usr/src \
+  && git clone --depth=1 --recursive --shallow-submodules https://github.com/google/boringssl \
+  && cd boringssl \
+  && mkdir build \
+  && cd build \
+  && cmake .. -DCMAKE_BUILD_TYPE=Release \
+  && make -j$(getconf _NPROCESSORS_ONLN) \
+  && cd .. \
+  && mkdir build2 \
+  && cd build2 \
+  && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=1 \
+  && make -j$(getconf _NPROCESSORS_ONLN) \
+  && mkdir -p /usr/src/boringssl/.openssl/include/openssl \
+  && cd /usr/src/boringssl/.openssl/include/openssl \
+  && ln /usr/src/boringssl/include/openssl/* . \
+  && mkdir /usr/src/boringssl/.openssl/lib \
+  && cd /usr/src/boringssl/.openssl/lib \
+  && cp /usr/src/boringssl/build/crypto/libcrypto.a . \
+  && cp /usr/src/boringssl/build/ssl/libssl.a . \
+  && cp /usr/src/boringssl/build2/crypto/libcrypto.so . \
+  && cp /usr/src/boringssl/build2/ssl/libssl.so . \
+  && cd /usr/src \
   && git clone --depth=1 --recursive --shallow-submodules https://github.com/google/ngx_brotli \
   && git clone --depth=1 --recursive --shallow-submodules https://github.com/openresty/headers-more-nginx-module \
   && git clone --branch $NJS_TAG --depth=1 --recursive --shallow-submodules https://github.com/nginx/njs \
   && git clone --depth=1 --recursive --shallow-submodules https://github.com/AirisX/nginx_cookie_flag_module \
-  && git clone --recursive https://github.com/cloudflare/quiche \
-  && cd /usr/src/quiche \
-  && git checkout --recurse-submodules $QUICHE_CHECKOUT \
-  && cd /usr/src \
-  && wget -q https://raw.githubusercontent.com/kn007/patch/a3b20fc0df25aa6875f04f414e22bb1d2cd3ecb2/nginx_with_quic.patch \
-  && wget -q https://raw.githubusercontent.com/kn007/patch/cd03b77647c9bf7179acac0125151a0fbb4ac7c8/Enable_BoringSSL_OCSP.patch \
+  && curl -fSL https://raw.githubusercontent.com/QVQNetwork/ssl-patch/master/nginx-boringssl/0001-judgment-BoringSSL.patch -o 0001-judgment-BoringSSL.patch \
+  && curl -fSL https://raw.githubusercontent.com/kn007/patch/cd03b77647c9bf7179acac0125151a0fbb4ac7c8/Enable_BoringSSL_OCSP.patch -o Enable_BoringSSL_OCSP.patch \
   && git clone --recursive --branch $MODSEC_TAG --single-branch https://github.com/SpiderLabs/ModSecurity \
   && git clone --depth=1 --recursive --shallow-submodules --branch $MODSEC_NGX_TAG --single-branch https://github.com/SpiderLabs/ModSecurity-nginx \
-  && git clone --depth=1 https://github.com/coreruleset/coreruleset /usr/local/share/coreruleset \
+  && git clone --depth=1 --recursive --shallow-submodules https://github.com/coreruleset/coreruleset /usr/local/share/coreruleset \
   && CRS_COMMIT=$(git --git-dir=/usr/local/share/coreruleset/.git rev-parse --short HEAD) \
   && cp /usr/local/share/coreruleset/crs-setup.conf.example /usr/local/share/coreruleset/crs-setup.conf \
   && find /usr/local/share/coreruleset \! -name '*.conf' -type f -mindepth 1 -maxdepth 1 -delete \
   && find /usr/local/share/coreruleset \! -name 'rules' -type d -mindepth 1 -maxdepth 1 | xargs rm -rf \
-  && wget -qO nginx.tar.gz https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz \
-  && wget -qO nginx.tar.gz.asc https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz.asc \
-  && export GNUPGHOME="$(mktemp -d)" \
-  && found=''; \
-  for server in \
-  ha.pool.sks-keyservers.net \
-  hkp://keyserver.ubuntu.com:80 \
-  hkp://p80.pool.sks-keyservers.net:80 \
-  pgp.mit.edu \
-  ; do \
-  echo "Fetching GPG key $GPG_KEYS from $server"; \
-  gpg --keyserver "$server" --keyserver-options timeout=10 --recv-keys "$GPG_KEYS" && found=yes && break; \
-  done; \
-  test -z "$found" && echo >&2 "error: failed to fetch GPG key $GPG_KEYS" && exit 1; \
-  gpg --batch --verify nginx.tar.gz.asc nginx.tar.gz \
-  && rm -rf "$GNUPGHOME" nginx.tar.gz.asc \
-  && tar -zxC /usr/src -f nginx.tar.gz \
-  && rm nginx.tar.gz \
   && cd /usr/src/ModSecurity \
   && ./build.sh \
   && ./configure --with-lmdb --enable-examples=no \
   && make -j$(getconf _NPROCESSORS_ONLN) \
   && make -j$(getconf _NPROCESSORS_ONLN) install \
+  && cd /usr/src \
+  && hg clone -b quic https://hg.nginx.org/nginx-quic \
+  && mv nginx-quic nginx-$NGINX_VERSION \
   && cd /usr/src/nginx-$NGINX_VERSION \
-  && patch -p01 < /usr/src/nginx_with_quic.patch \
+  && NGINX_QUIC_REVISION=$(hg id -i) \
+  && patch -p01 < /usr/src/0001-judgment-BoringSSL.patch \
   && patch -p01 < /usr/src/Enable_BoringSSL_OCSP.patch \
-  && ./configure $CONFIG --build="docker-nginx-http3-$VCS_REF-$BUILD_DATE ModSecurity-$(git --git-dir=/usr/src/ModSecurity/.git rev-parse --short HEAD) ModSecurity-nginx-$(git --git-dir=/usr/src/ModSecurity-nginx/.git rev-parse --short HEAD) coreruleset-$CRS_COMMIT quiche-$(git --git-dir=/usr/src/quiche/.git rev-parse --short HEAD) ngx_brotli-$(git --git-dir=/usr/src/ngx_brotli/.git rev-parse --short HEAD) headers-more-nginx-module-$(git --git-dir=/usr/src/headers-more-nginx-module/.git rev-parse --short HEAD) njs-$(git --git-dir=/usr/src/njs/.git rev-parse --short HEAD) nginx_cookie_flag_module-$(git --git-dir=/usr/src/nginx_cookie_flag_module/.git rev-parse --short HEAD)" \
+  && ./auto/configure $CONFIG \
+    --with-cc-opt="-Wno-error -I/usr/src/boringssl/include" \
+    --with-ld-opt="-L/usr/src/boringssl/build/ssl -L/usr/src/boringssl/build/crypto" \
+    --build="docker-nginx-http3-$VCS_REF-$BUILD_DATE boringssl-$(git --git-dir=/usr/src/boringssl/.git rev-parse --short HEAD) nginx-quic-$NGINX_QUIC_REVISION ngx_brotli-$(git --git-dir=/usr/src/ngx_brotli/.git rev-parse --short HEAD) headers-more-nginx-module-$(git --git-dir=/usr/src/headers-more-nginx-module/.git rev-parse --short HEAD) njs-$(git --git-dir=/usr/src/njs/.git rev-parse --short HEAD) nginx_cookie_flag_module-$(git --git-dir=/usr/src/nginx_cookie_flag_module/.git rev-parse --short HEAD) ModSecurity-$(git --git-dir=/usr/src/ModSecurity/.git rev-parse --short HEAD) ModSecurity-nginx-$(git --git-dir=/usr/src/ModSecurity-nginx/.git rev-parse --short HEAD) coreruleset-$CRS_COMMIT" \
   && make -j$(getconf _NPROCESSORS_ONLN) \
   && make -j$(getconf _NPROCESSORS_ONLN) install \
   && rm -rf /etc/nginx/html/ \
   && mkdir /etc/nginx/conf.d/ \
   && mkdir /etc/nginx/modsec/ \
-  && mkdir -p /usr/share/nginx/html/ \
-  && install -m644 html/index.html /usr/share/nginx/html/ \
-  && install -m644 html/50x.html /usr/share/nginx/html/ \
+  # && mkdir -p /usr/share/nginx/html/ \
+  # && install -m644 html/index.html /usr/share/nginx/html/ \
+  # && install -m644 html/50x.html /usr/share/nginx/html/ \
   && install -m444 /usr/src/ModSecurity/modsecurity.conf-recommended /etc/nginx/modsec/modsecurity.conf \
   && install -m444 /usr/src/ModSecurity/unicode.mapping /etc/nginx/modsec/unicode.mapping \
   && ln -s /usr/lib/nginx/modules /etc/nginx/modules \
@@ -207,6 +215,7 @@ RUN set -x; GPG_KEYS=B0F4253373F8F6F510D42178520A9993A1C052F8 \
   && apk add --no-cache --virtual .nginx-rundeps $runDeps \
   && apk del .modsec-build-deps \
   && apk del .brotli-build-deps \
+  && apk del .nginx-quic-build-deps \
   && apk del .build-deps \
   && apk del .gettext \
   && rm -rf /root/.cargo \
@@ -220,7 +229,7 @@ FROM alpine:edge
 
 COPY --from=builder /usr/sbin/nginx /usr/sbin/
 COPY --from=builder /usr/lib/nginx /usr/lib/nginx
-COPY --from=builder /usr/share/nginx/html/* /usr/share/nginx/html/
+# COPY --from=builder /usr/share/nginx/html/* /usr/share/nginx/html/
 COPY --from=builder /etc/nginx/ /etc/nginx/
 COPY --from=builder /usr/local/bin/envsubst /usr/local/bin/
 COPY --from=builder /etc/ssl/private/localhost.key /etc/ssl/private/
@@ -266,3 +275,5 @@ CMD ["nginx", "-g", "daemon off;"]
 LABEL org.label-schema.build-date=$BUILD_DATE \
   org.label-schema.vcs-ref=$VCS_REF \
   org.label-schema.vcs-url="https://github.com/patrikjuvonen/docker-nginx-http3.git"
+
+EXPOSE 80 443 443/udp

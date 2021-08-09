@@ -7,10 +7,10 @@
 [![Docker Cloud Automated build](https://img.shields.io/docker/cloud/automated/patrikjuvonen/docker-nginx-http3?color=brightgreen)](https://hub.docker.com/r/patrikjuvonen/docker-nginx-http3)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-v2.0%20adopted-ff69b4.svg)](code_of_conduct.md)
 
-Alpine Linux image with nginx `1.21.6` (mainline) with HTTP/3 (QUIC), TLSv1.3,
-0-RTT, HPACK, brotli, NJS, Cookie-Flag, headers, ModSecurity with coreruleset
-and BoringSSL with OCSP support. All built on the bleeding edge. Built on the
-edge, for the edge.
+Alpine Linux image with nginx `1.21.6` (mainline) with HTTP/3 (nginx-quic),
+TLSv1.3, 0-RTT, HPACK, brotli, NJS, Cookie-Flag, headers, ModSecurity with
+coreruleset and BoringSSL with OCSP support. All built on the bleeding edge.
+Built on the edge, for the edge.
 
 Total size is only about ~36 MB uncompressed and ~14 MB compressed.
 
@@ -26,13 +26,11 @@ Special in this fork:
 - BoringSSL OCSP enabled with [kn007/patch](https://github.com/kn007/patch/)
 - Removed nginx debug build
 
-HTTP/3 support provided from the smart people at
-[Cloudflare](https://cloudflare.com) with the
-[cloudflare/quiche](https://github.com/cloudflare/quiche) project.
+HTTP/3 support provided by [nginx-quic](https://quic.nginx.org/).
 
-Images for this are available on
-[Docker Hub](https://hub.docker.com/r/patrikjuvonen/docker-nginx-http3) and
-[GHCR](https://github.com/patrikjuvonen/docker-nginx-http3/pkgs/container/docker-nginx-http3).
+Images for this are available on [Docker Hub](https://hub.docker.com/r/patrikjuvonen/docker-nginx-http3).
+
+**Latest**: `docker pull patrikjuvonen/docker-nginx-http3:nginx-quic`
 
 ## Usage
 
@@ -51,7 +49,7 @@ Example:
 
 ```Dockerfile
 # Nginx HTTP/3 Image
-FROM patrikjuvonen/docker-nginx-http3:latest
+FROM patrikjuvonen/docker-nginx-http3:nginx-quic
 
 # Copy your certs.
 COPY localhost.key /etc/ssl/private/
@@ -76,7 +74,7 @@ Contributions are welcome. Please feel free to contribute 😊.
 
 ## Features
 
-- HTTP/3 (QUIC) via Cloudflare's quiche
+- HTTP/3 (QUIC) via nginx's quic branch
 - HTTP/2 (with Server Push)
 - HTTP/2
 - BoringSSL (Google's flavor of OpenSSL)
