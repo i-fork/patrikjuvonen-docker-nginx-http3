@@ -68,6 +68,17 @@ H3 runs over UDP so, you will need to port map both TCP and UDP. Ex:
 the client to upgrade you to HTTP/3. [Let's Encrypt](https://letsencrypt.org/)
 is a option for getting a free valid CA signed certificate.
 
+## Potential issues with fastcgi/php
+
+If you are having issues with HTTP_COOKIE or HTTP_HOST (possibly more) not being set, set them manually in your nginx configuration using fastcgi_param, for example:
+
+```
+fastcgi_param HTTP_HOST $host;
+fastcgi_param HTTP_COOKIE $http_cookie;
+```
+
+I am not sure why these have to be set manually at this time.
+
 ## Contributing
 
 Contributions are welcome. Please feel free to contribute 😊.
