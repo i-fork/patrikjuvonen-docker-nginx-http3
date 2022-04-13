@@ -12,7 +12,7 @@ TLSv1.3, 0-RTT, HPACK, brotli, NJS, Cookie-Flag, headers, ModSecurity with
 coreruleset and BoringSSL with OCSP support. All built on the bleeding edge.
 Built on the edge, for the edge.
 
-Total size is only about ~36 MB uncompressed and ~14 MB compressed.
+Total size is only about ~33 MB uncompressed and ~13 MB compressed.
 
 This is a fork of
 [ranadeeppolavarapu/docker-nginx-http3](https://github.com/ranadeeppolavarapu/docker-nginx-http3).

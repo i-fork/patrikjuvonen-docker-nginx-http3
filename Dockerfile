@@ -26,6 +26,9 @@ ENV NJS_TAG 0.6.2
 ARG BUILD_DATE
 ARG VCS_REF
 
+# HACK: This patch is a temporary solution, might cause failures
+COPY options.patch /usr/src/
+
 RUN set -x \
   && CONFIG="\
   --prefix=/etc/nginx \
@@ -75,7 +78,6 @@ RUN set -x \
   --with-http_v2_module \
   --with-http_v2_hpack_enc \
   --with-http_v3_module \
-  --with-http_quic_module \
   --with-stream_quic_module \
   --with-openssl=/usr/src/boringssl \
   --add-module=/usr/src/ngx_brotli \
@@ -127,7 +129,6 @@ RUN set -x \
   libmaxminddb-dev \
   lmdb-dev \
   file \
-  && mkdir /usr/src \
   && cd /usr/src \
   && git clone --depth=1 --recursive --shallow-submodules https://github.com/google/boringssl \
   && cd boringssl \
@@ -156,6 +157,7 @@ RUN set -x \
   && git clone --depth=1 --recursive --shallow-submodules https://github.com/AirisX/nginx_cookie_flag_module \
   && curl -fSL https://raw.githubusercontent.com/QVQNetwork/ssl-patch/master/nginx-boringssl/0001-judgment-BoringSSL.patch -o 0001-judgment-BoringSSL.patch \
   && curl -fSL https://raw.githubusercontent.com/kn007/patch/cd03b77647c9bf7179acac0125151a0fbb4ac7c8/Enable_BoringSSL_OCSP.patch -o Enable_BoringSSL_OCSP.patch \
+  && curl -fSL https://raw.githubusercontent.com/kn007/patch/f0b8ebd76924eb9c573c8056792b7f1d6f79d684/nginx.patch -o nginx.patch \
   && git clone --recursive --branch $MODSEC_TAG --single-branch https://github.com/SpiderLabs/ModSecurity \
   && git clone --depth=1 --recursive --shallow-submodules --branch $MODSEC_NGX_TAG --single-branch https://github.com/SpiderLabs/ModSecurity-nginx \
   && git clone --depth=1 --recursive --shallow-submodules https://github.com/coreruleset/coreruleset /usr/local/share/coreruleset \
@@ -173,6 +175,8 @@ RUN set -x \
   && mv nginx-quic nginx-$NGINX_VERSION \
   && cd /usr/src/nginx-$NGINX_VERSION \
   && NGINX_QUIC_REVISION=$(hg id -i) \
+  && patch -p01 < /usr/src/nginx.patch || true \
+  && patch -p01 < /usr/src/options.patch \
   && patch -p01 < /usr/src/0001-judgment-BoringSSL.patch \
   && patch -p01 < /usr/src/Enable_BoringSSL_OCSP.patch \
   && ./auto/configure $CONFIG \
